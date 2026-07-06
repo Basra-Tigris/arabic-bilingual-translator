@@ -1,5 +1,7 @@
 # Arabic Bilingual Translator
 
+**Language / 语言 / اللغة:** [中文](#中文) | [English](#english) | [العربية](#العربية)
+
 ## 中文
 
 `arabic-bilingual-translator` 是一个面向 Codex 的阿语双语翻译 skill，用于把阿拉伯语、英语或中文来源材料转换成专业的双语 Word 文件，特别适合法律、监管、商务和正式往来文件。
