@@ -1,6 +1,6 @@
 ---
 name: arabic-bilingual-translator
-description: Translate Arabic, English, or Chinese source documents, PDFs, scanned PDFs, page images, screenshots, or photographed documents into either side-by-side bilingual Word files (EN/ZH left, AR right) or clean translated Word files with only the target-language text, preserving legal structure, reference identifiers, and party names, and surfacing rather than silently resolving ambiguities. This skill should be used when the user asks to translate an Arabic legal or general document, PDF, scan, image, or photo into English and/or Chinese (or vice versa: EN/ZH source into Arabic), choose between bilingual comparison and clean translation output, produce a side-by-side bilingual Word file, produce a clean translation Word file, render Arabic right-to-left correctly, read Arabic from PDFs/images, or handle Saudi/GCC legal terminology and Hijri dates. Triggers include phrases like "translate this Arabic PDF", "translate these images", "bilingual Arabic Word", "clean translation", "pure translation", "EN-AR translation", "ZH-AR translation", "Arabic legal translation", "沙特法律翻译", "阿拉伯语对照翻译", "纯净译文", "阿语 PDF", "图片翻译".
+description: Translate Arabic, English, or Chinese source materials, including legal, regulatory, business, or general documents, PDFs, scanned PDFs, page images, screenshots, and photographed documents, into either side-by-side bilingual Word files (EN/ZH left, AR right) or clean target-language Word files. Use for Arabic legal translation, Arabic PDF/image translation, EN-AR or ZH-AR bilingual review files, clean translations, Saudi/GCC terminology, Hijri dates, right-to-left Word rendering, and workflows that must preserve structure, reference identifiers, party names, tables, signatures, and flagged ambiguities. Triggers include "translate this Arabic PDF", "Arabic legal translation", "bilingual Arabic Word", "clean translation", "pure translation", "EN-AR translation", "ZH-AR translation", "沙特法律翻译", "阿拉伯语对照翻译", "纯净译文", "阿语 PDF", and "图片翻译".
 ---
 
 # Arabic Bilingual Translator
@@ -8,6 +8,29 @@ description: Translate Arabic, English, or Chinese source documents, PDFs, scann
 ## Overview
 
 Turn an Arabic, English, or Chinese source document — including `.docx`, born-digital PDF, scanned PDF, screenshots, page images, or photographed documents — into professionally formatted Word translation files, fit to circulate to counsel and stakeholders. Before translating, confirm whether the user wants **side-by-side bilingual output** (EN/ZH left, AR right) or a **clean translated output** (target-language text only, no source column). The hard parts of this job are not the language — they are (1) reading scanned Arabic correctly, (2) preserving the structural and citational conventions a lawyer relies on, (3) rendering Arabic right-to-left in Word without breakage, and (4) surfacing rather than silently resolving the ambiguities that change legal meaning. This skill encodes the whole pipeline so each document does not have to be re-figured-out from scratch.
+
+## Universal Agent Entry
+
+This repository follows the Agent Skills open-format pattern: a folder with `SKILL.md` frontmatter, Markdown instructions, and optional `scripts/`, `references/`, and `assets/`. It is usable by Codex, Claude-style Skills, OpenClaw-style Skills, and general LLM agents such as GLM or Kimi when the runner can load Markdown instructions and optional files. Treat this `SKILL.md` as the canonical instruction file. If a platform has no native skill registry, provide this file as the system/developer instruction and attach only the reference files needed for the current task.
+
+Use this loading order:
+
+1. Load the YAML `name` and `description` for skill discovery or routing.
+2. Load this file when a task matches the description.
+3. Load reference files only when their conditions are met:
+   - `references/pdf-image-intake.md` for PDFs, scans, screenshots, page images, or photos.
+   - `references/glossary-legal.md` for Saudi/GCC/legal/regulatory materials or when legal mode is selected.
+   - `references/glossary-general.md` for non-legal general materials.
+   - `references/rtl-and-dates.md` when building Word output, validating Arabic RTL, or converting Hijri dates.
+4. Use bundled scripts and assets only if the agent environment can run local code. If code execution is unavailable, still follow the translation, ambiguity, terminology, and deliverable rules, and produce a structured translation draft plus a translator's note.
+
+Capability modes:
+
+- **Full agent mode:** read files, run `scripts/check_tools.py`, normalize visual sources, build `.docx` outputs from `assets/`, render or visually inspect results, and deliver files.
+- **Limited file mode:** read or transcribe available text/images, produce aligned bilingual tables or clean translation text, and clearly state which Word-generation or visual-validation steps were not performed.
+- **Prompt-only mode:** when no files or tools are available, ask for pasted text or readable page images, preserve numbering and references in the response, and do not claim that a `.docx` file was created.
+
+For machine-readable routing metadata, see `agent-manifest.yaml` in this repository. It is optional; the source of truth remains this `SKILL.md`.
 
 Two generation backends are bundled. Pick by environment:
 

@@ -4,7 +4,7 @@
 
 ## 中文
 
-`arabic-bilingual-translator` 是一个面向 Codex 的阿语翻译 skill，用于把阿拉伯语、英语或中文来源材料转换成专业的左右对照 Word 文件，或只保留目标语言的纯净译文 Word 文件，特别适合法律、监管、商务和正式往来文件。
+`arabic-bilingual-translator` 是一个兼容 Agent Skills 开放格式的可移植阿语翻译 agent skill，可用于 Codex、Claude/OpenClaw 风格的 skill 运行器，也可作为 GLM、Kimi 等通用大模型 agent 的系统提示/知识文件。它用于把阿拉伯语、英语或中文来源材料转换成专业的左右对照 Word 文件，或只保留目标语言的纯净译文 Word 文件，特别适合法律、监管、商务和正式往来文件。
 
 ### 基本功能
 
@@ -28,9 +28,19 @@
 - 处理沙特/GCC 法律文件、监管函件、竞争法调查材料、合同、备忘录或正式公文。
 - 将英文或中文材料翻译成阿语，并保留双语审阅格式。
 
+### 跨模型使用
+
+- **Codex / Claude / OpenClaw 类 skill 运行器**：直接把本仓库文件夹注册或上传为 skill；本仓库保留 `SKILL.md`、`scripts/`、`references/`、`assets/` 的开放 skill 结构。
+- **Claude Code 或其他会读取仓库说明的 coding agent**：先读取 `AGENTS.md`，再按 `SKILL.md` 执行。
+- **GLM、Kimi 或其他没有原生 skill 注册机制的大模型**：把 `SKILL.md` 作为系统提示或开发者提示使用，并按任务需要附加 `references/` 中的对应文件。
+- **自建 agent/orchestrator**：可解析 `agent-manifest.yaml` 获取触发词、输入输出、资源路径和降级模式。
+- **无文件/无代码执行环境**：使用 prompt-only 模式，只输出结构化译文和译者说明，不声称已经生成或视觉校验 Word 文件。
+
 ### 仓库内容
 
 - `SKILL.md`：skill 的完整工作流和翻译规则。
+- `AGENTS.md`：给通用 coding agent 的轻量入口说明。
+- `agent-manifest.yaml`：模型无关的结构化 skill 元数据。
 - `references/`：法律术语表、通用术语表、PDF/图片读取指南、RTL 与日期处理规则。
 - `assets/`：生成左右对照或纯净译文 Word 文件的 `docx-js` 和 `python-docx` 模板。
 - `scripts/`：环境检查和 PDF/图片预处理脚本。
@@ -41,7 +51,7 @@
 
 ## English
 
-`arabic-bilingual-translator` is a Codex skill for producing professional Arabic translation deliverables from Arabic, English, or Chinese source materials, either as side-by-side bilingual files or as clean target-language translations. It is designed especially for legal, regulatory, commercial, and formal documents.
+`arabic-bilingual-translator` is a portable agent skill compatible with the Agent Skills open format. It produces professional Arabic translation deliverables from Arabic, English, or Chinese source materials, either as side-by-side bilingual files or as clean target-language translations. It works as a Codex, Claude/OpenClaw-style skill folder, and can also be used as system/developer instructions for general LLM agents such as GLM or Kimi. It is designed especially for legal, regulatory, commercial, and formal documents.
 
 ### Core Capabilities
 
@@ -65,9 +75,19 @@
 - Handling Saudi/GCC legal documents, regulator letters, competition-law investigation materials, contracts, memoranda, and formal correspondence.
 - Translating English or Chinese material into Arabic while preserving a bilingual review format.
 
+### Cross-Model Use
+
+- **Codex / Claude / OpenClaw-style skill runners:** register or upload this repository folder as a skill. It keeps the open skill structure of `SKILL.md`, `scripts/`, `references/`, and `assets/`.
+- **Claude Code or other repository-aware coding agents:** read `AGENTS.md` first, then execute `SKILL.md`.
+- **GLM, Kimi, or other LLMs without native skill registration:** use `SKILL.md` as the system/developer instruction and attach only the relevant files from `references/`.
+- **Custom agents/orchestrators:** parse `agent-manifest.yaml` for triggers, inputs, outputs, resource paths, and fallback modes.
+- **No file or code-execution environment:** use prompt-only mode. Produce structured translation text and a translator's note, but do not claim that Word files were generated or visually validated.
+
 ### Repository Contents
 
 - `SKILL.md`: the full workflow and translation rules.
+- `AGENTS.md`: a lightweight entry file for generic coding agents.
+- `agent-manifest.yaml`: model-neutral structured skill metadata.
 - `references/`: legal glossary, general glossary, PDF/image intake guide, and RTL/date handling rules.
 - `assets/`: `docx-js` and `python-docx` templates for building side-by-side bilingual or clean translated Word files.
 - `scripts/`: environment checking and PDF/image preprocessing utilities.
@@ -78,7 +98,7 @@
 
 ## العربية
 
-`arabic-bilingual-translator` هي مهارة مخصصة لـ Codex لإنتاج ترجمات عربية احترافية من العربية أو الإنجليزية أو الصينية، سواء في ملفات ثنائية الأعمدة أو في ملفات ترجمة نظيفة تحتوي على نص اللغة الهدف فقط، وهي مناسبة خصوصا للمستندات القانونية والتنظيمية والتجارية والمراسلات الرسمية.
+`arabic-bilingual-translator` هي مهارة وكيل قابلة للنقل ومتوافقة مع صيغة Agent Skills المفتوحة لإنتاج ترجمات عربية احترافية من العربية أو الإنجليزية أو الصينية، سواء في ملفات ثنائية الأعمدة أو في ملفات ترجمة نظيفة تحتوي على نص اللغة الهدف فقط. يمكن استخدامها في Codex وClaude/OpenClaw أو كتعليمات نظام/مطور لنماذج عامة مثل GLM وKimi، وهي مناسبة خصوصا للمستندات القانونية والتنظيمية والتجارية والمراسلات الرسمية.
 
 ### الوظائف الأساسية
 
@@ -102,9 +122,19 @@
 - التعامل مع المستندات القانونية السعودية والخليجية، وخطابات الجهات التنظيمية، ومواد تحقيقات المنافسة، والعقود، والمذكرات، والمراسلات الرسمية.
 - ترجمة مواد إنجليزية أو صينية إلى العربية مع الحفاظ على صيغة مراجعة ثنائية اللغة.
 
+### الاستخدام عبر النماذج
+
+- **مشغلات المهارات مثل Codex / Claude / OpenClaw:** سجّل أو ارفع مجلد المستودع كمهارة، مع بنية skill المفتوحة: `SKILL.md` و`scripts/` و`references/` و`assets/`.
+- **Claude Code أو وكلاء البرمجة الذين يقرؤون تعليمات المستودع:** اقرأ `AGENTS.md` أولا، ثم اتبع `SKILL.md`.
+- **GLM أو Kimi أو النماذج التي لا تملك نظام مهارات أصليا:** استخدم `SKILL.md` كتعليمات نظام/مطور، وأرفق فقط ملفات `references/` ذات الصلة بالمهمة.
+- **الوكلاء أو المنسقون المخصصون:** يمكنهم قراءة `agent-manifest.yaml` للحصول على المشغلات والمدخلات والمخرجات ومسارات الموارد وأنماط العمل البديلة.
+- **عند عدم توفر ملفات أو تنفيذ كود:** استخدم نمط prompt-only، وقدّم نص الترجمة المنظم وملاحظة المترجم دون الادعاء بإنشاء ملف Word أو فحصه بصريا.
+
 ### محتويات المستودع
 
 - `SKILL.md`: سير العمل الكامل وقواعد الترجمة.
+- `AGENTS.md`: ملف دخول مختصر للوكلاء البرمجيين العامين.
+- `agent-manifest.yaml`: بيانات وصفية منظمة ومحايدة للنماذج.
 - `references/`: قاموس قانوني، قاموس عام، دليل إدخال ملفات PDF والصور، وقواعد اتجاه النص والتواريخ.
 - `assets/`: قوالب `docx-js` و`python-docx` لإنشاء ملفات Word ثنائية اللغة.
 - `scripts/`: أدوات فحص البيئة وتجهيز ملفات PDF والصور.

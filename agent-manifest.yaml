@@ -1,0 +1,161 @@
+schema_version: "1.0"
+kind: agent-skill
+id: arabic-bilingual-translator
+name: Arabic Bilingual Translator
+entrypoint: SKILL.md
+summary: >
+  Translate Arabic, English, or Chinese source materials into Arabic bilingual
+  review files or clean target-language Word translations while preserving
+  legal structure, citations, party names, RTL rendering, and translator notes.
+
+standard_profile:
+  format: Agent Skills compatible
+  required_entrypoint: SKILL.md
+  required_frontmatter:
+    - name
+    - description
+  optional_directories_used:
+    - scripts
+    - references
+    - assets
+  nonstandard_extension: This manifest is optional routing metadata for custom agents.
+
+aliases:
+  - arabic-legal-translator
+  - arabic-bilingual-word
+  - en-ar-translator
+  - zh-ar-translator
+  - 阿语法律翻译
+  - 阿拉伯语对照翻译
+
+compatible_runners:
+  native_skill_folder:
+    examples:
+      - Codex skills
+      - Claude Skills
+      - OpenClaw-style skills
+    discovery:
+      file: SKILL.md
+      fields:
+        - name
+        - description
+  repository_agent:
+    entry_file: AGENTS.md
+    canonical_instruction: SKILL.md
+  prompt_only_agent:
+    instruction_file: SKILL.md
+    attach_references_conditionally: true
+
+triggers:
+  positive:
+    - translate an Arabic PDF, scan, image, screenshot, or photo
+    - create an EN-AR or ZH-AR side-by-side bilingual Word file
+    - create a clean English, Chinese, or Arabic translation Word file
+    - handle Saudi or GCC legal, regulatory, competition-law, or formal documents
+    - preserve Arabic right-to-left layout in Word
+    - convert or annotate Hijri dates during translation
+    - 沙特法律翻译
+    - 阿语 PDF 翻译
+    - 阿拉伯语左右对照 Word
+    - 纯净译文
+  negative:
+    - certified or sworn translation unless the user only needs a working draft
+    - unrelated Arabic language learning or grammar tutoring
+    - generic OCR with no translation or bilingual deliverable requested
+
+inputs:
+  languages:
+    source:
+      - Arabic
+      - English
+      - Chinese
+    target:
+      - Arabic
+      - English
+      - Chinese
+  file_types:
+    - .docx
+    - .pdf
+    - .png
+    - .jpg
+    - .jpeg
+    - .tif
+    - .tiff
+    - .webp
+    - .bmp
+    - pasted text
+
+outputs:
+  side_by_side:
+    description: Two-column bilingual Word review file.
+    patterns:
+      - "<basename>_EN-AR.docx"
+      - "<basename>_ZH-AR.docx"
+  clean_translation:
+    description: Target-language-only Word translation.
+    patterns:
+      - "<basename>_EN_clean.docx"
+      - "<basename>_ZH_clean.docx"
+      - "<basename>_AR_clean.docx"
+  fallback_text:
+    description: Structured translated text plus translator's note when file generation is unavailable.
+
+reference_routing:
+  pdf_or_image_source:
+    load:
+      - references/pdf-image-intake.md
+  legal_or_regulatory_mode:
+    load:
+      - references/glossary-legal.md
+  general_mode:
+    load:
+      - references/glossary-general.md
+  word_rtl_or_hijri_dates:
+    load:
+      - references/rtl-and-dates.md
+
+resources:
+  scripts:
+    environment_check: scripts/check_tools.py
+    visual_source_preparation: scripts/prepare_visual_source.py
+  assets:
+    docx_js_template: assets/build_bilingual_docx.js
+    python_docx_template: assets/build_bilingual_py.py
+  references:
+    - references/glossary-legal.md
+    - references/glossary-general.md
+    - references/pdf-image-intake.md
+    - references/rtl-and-dates.md
+
+execution_modes:
+  full_agent:
+    requirements:
+      - local file access
+      - Python or Node.js execution
+      - ability to create and inspect Word/PDF/image outputs
+    expected_behavior:
+      - run environment checks
+      - normalize PDFs/images when needed
+      - build Word deliverables
+      - render or visually inspect output before delivery
+  limited_file:
+    requirements:
+      - source text or readable images
+    expected_behavior:
+      - translate and preserve structure
+      - provide aligned tables or clean translation text
+      - disclose missing Word-generation or visual-validation steps
+  prompt_only:
+    requirements:
+      - pasted source text or user-provided readable snippets
+    expected_behavior:
+      - ask for missing source content
+      - produce a structured working translation
+      - do not claim file creation
+
+safety_invariants:
+  - Ask for output format unless explicitly specified.
+  - Preserve references, identifiers, numbering, party names, dates, tables, and signature blocks.
+  - Do not silently resolve ambiguity.
+  - Flag unreadable scan regions, uncertain OCR, internal inconsistencies, and date conversions.
+  - State that outputs are working translations, not certified or sworn translations.
