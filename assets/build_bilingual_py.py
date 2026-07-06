@@ -1,7 +1,8 @@
 """build_bilingual_py.py
-python-docx template for generating bilingual Word documents:
+python-docx template for generating bilingual or clean translated Word documents:
   - EN-AR file: left column English, right column Arabic
   - ZH-AR file: left column Chinese, right column Arabic
+  - Clean file: target-language translation only, no source-text column
 
 All body paragraphs use 1.2x line spacing (see LINE_SPACING_MULTIPLE below).
 
@@ -30,12 +31,17 @@ LINE_SPACING_MULTIPLE = 1.2
 # =============================================================================
 # CONTENT - EDIT THIS SECTION
 # =============================================================================
-# Each document is one bilingual file. Each row is [left_text, right_text].
+# Each document is one output file.
+# layout="side-by-side" uses rows as aligned [left_text, right_text] pairs.
+# layout="clean" uses paragraphs as target-language text only. If paragraphs is
+# omitted, clean output is derived from rows: left text for EN/ZH, right text for AR.
 # `mode` controls the pair: "EN-AR" (English left / Arabic right)
 #                          "ZH-AR" (Chinese left / Arabic right)
+# `target_language` for clean output: "EN", "ZH", or "AR".
 
 DOCUMENTS = [
     {
+        "layout": "side-by-side",
         "mode": "EN-AR",
         "basename": "sample_EN-AR",
         "title": "Bilingual Document - English / Arabic",
@@ -58,6 +64,7 @@ DOCUMENTS = [
         ],
     },
     {
+        "layout": "side-by-side",
         "mode": "ZH-AR",
         "basename": "sample_ZH-AR",
         "title": "对照文档 - 中文 / 阿拉伯语",
@@ -77,6 +84,30 @@ DOCUMENTS = [
             "3. 日期换算：本样例无。",
             "4. 术语选择：全文统一译法。",
             "5. 使用的后端：python-docx。",
+        ],
+    },
+    {
+        "layout": "clean",
+        "mode": "EN-AR",
+        "target_language": "EN",
+        "basename": "sample_EN_clean",
+        "title": "English Translation",
+        "subtitle": "Clean working translation - not certified",
+        "confidentiality": "DRAFT - CONFIDENTIAL",
+        "paragraphs": [
+            "Decision No. DE-1447-00053",
+            "The General Authority for Competition, after reviewing the file,",
+            "decides the following:",
+            "First: The respondent shall cease the conduct.",
+            "Second: A fine of SAR 100,000 is imposed.",
+        ],
+        "translators_note": [
+            "Translator's note (for counsel verification - this is a working translation, not a certified/sworn translation):",
+            "1. Judgment calls: none in this sample.",
+            "2. Ambiguities / source defects: none observed.",
+            "3. Date conversions: none in this sample.",
+            "4. Terminology choices: 'General Authority for Competition' used throughout.",
+            "5. Backend used: python-docx.",
         ],
     },
 ]
@@ -211,6 +242,108 @@ def add_cjk_paragraph(cell_or_doc, text, bold=False, size=SIZE_BODY):
     return p
 
 
+def target_language(doc_def):
+    """Return the clean-output target language: EN, ZH, or AR."""
+    if doc_def.get("target_language"):
+        return doc_def["target_language"]
+    if doc_def.get("mode") == "ZH-AR":
+        return "ZH"
+    if doc_def.get("mode") == "AR":
+        return "AR"
+    return "EN"
+
+
+def is_clean_layout(doc_def):
+    """Return True when the document should be rendered as target text only."""
+    return doc_def.get("layout") == "clean"
+
+
+def add_translated_paragraph(doc, item, language):
+    """Add one paragraph in the clean translated layout."""
+    data = {"text": item} if isinstance(item, str) else item
+    text = data.get("text", "")
+    bold = data.get("bold", False)
+    if language == "AR":
+        return add_arabic_paragraph(doc, text, bold=bold)
+    if language == "ZH":
+        return add_cjk_paragraph(doc, text, bold=bold)
+    return add_latin_paragraph(doc, text, bold=bold)
+
+
+def add_clean_body(doc, doc_def):
+    """Add target-language-only body paragraphs."""
+    language = target_language(doc_def)
+    paragraphs = doc_def.get("paragraphs")
+    if paragraphs is None:
+        paragraphs = [
+            right if language == "AR" else left
+            for left, right in doc_def.get("rows", [])
+        ]
+    for item in paragraphs:
+        add_translated_paragraph(doc, item, language)
+
+
+def add_side_by_side_body(doc, doc_def):
+    """Add the two-column bilingual comparison table."""
+    table = doc.add_table(rows=1, cols=2)
+    table.alignment = WD_TABLE_ALIGNMENT.CENTER
+    table.autofit = False
+
+    LEFT_WIDTH = 55
+    RIGHT_WIDTH = 45
+
+    # Header row
+    hdr_cells = table.rows[0].cells
+    left_label = "中文" if doc_def["mode"] == "ZH-AR" else "English"
+    # Left header (LTR)
+    set_cell_width(hdr_cells[0], LEFT_WIDTH)
+    set_cell_shading(hdr_cells[0], HEADER_FILL)
+    hdr_p0 = hdr_cells[0].paragraphs[0]
+    hdr_p0.alignment = WD_PARAGRAPH_ALIGNMENT.LEFT
+    set_1_2_spacing(hdr_p0)
+    hdr_r0 = hdr_p0.add_run(left_label)
+    hdr_r0.bold = True
+    hdr_r0.font.size = SIZE_BODY
+    if doc_def["mode"] == "ZH-AR":
+        set_cjk_font(hdr_r0, FONT_LATIN, FONT_CJK)
+    else:
+        hdr_r0.font.name = FONT_LATIN
+    # Right header (RTL Arabic)
+    set_cell_width(hdr_cells[1], RIGHT_WIDTH)
+    set_cell_shading(hdr_cells[1], HEADER_FILL)
+    hdr_p1 = hdr_cells[1].paragraphs[0]
+    hdr_p1.alignment = WD_PARAGRAPH_ALIGNMENT.RIGHT
+    set_rtl_paragraph(hdr_p1)
+    set_1_2_spacing(hdr_p1)
+    hdr_r1 = hdr_p1.add_run("العربية")
+    hdr_r1.bold = True
+    hdr_r1.font.size = SIZE_BODY
+    set_complex_script_font(hdr_r1, FONT_ARABIC)
+    set_rtl_run(hdr_r1)
+
+    # Body rows
+    for left_text, right_text in doc_def["rows"]:
+        row = table.add_row()
+        left_cell = row.cells[0]
+        right_cell = row.cells[1]
+        set_cell_width(left_cell, LEFT_WIDTH)
+        set_cell_width(right_cell, RIGHT_WIDTH)
+        # Clear default empty paragraph in each cell
+        left_cell.paragraphs[0].text = ""
+        right_cell.paragraphs[0].text = ""
+        # Left content
+        if doc_def["mode"] == "ZH-AR":
+            add_cjk_paragraph(left_cell, left_text)
+        else:
+            add_latin_paragraph(left_cell, left_text)
+        # Right Arabic content
+        add_arabic_paragraph(right_cell, right_text)
+        # Remove the leftover empty first paragraph in each cell
+        for cell in (left_cell, right_cell):
+            if len(cell.paragraphs) > 1 and not cell.paragraphs[0].text:
+                cell.paragraphs[0]._p.getparent().remove(cell.paragraphs[0]._p)
+
+
 # =============================================================================
 # DOCUMENT BUILDER
 # =============================================================================
@@ -218,6 +351,7 @@ def add_cjk_paragraph(cell_or_doc, text, bold=False, size=SIZE_BODY):
 
 def build_document(doc_def):
     doc = Document()
+    language = target_language(doc_def)
 
     # Page setup: A4 portrait, 1 inch margins
     section = doc.sections[0]
@@ -282,8 +416,12 @@ def build_document(doc_def):
     title_run = title_p.add_run(doc_def["title"])
     title_run.bold = True
     title_run.font.size = SIZE_HEADING
-    if doc_def["mode"] == "ZH-AR":
+    if language == "ZH":
         set_cjk_font(title_run, FONT_LATIN, FONT_CJK)
+    elif language == "AR":
+        set_complex_script_font(title_run, FONT_ARABIC)
+        set_rtl_run(title_run)
+        set_rtl_paragraph(title_p)
     else:
         title_run.font.name = FONT_LATIN
 
@@ -294,8 +432,12 @@ def build_document(doc_def):
     sub_run = sub_p.add_run(doc_def["subtitle"])
     sub_run.italic = True
     sub_run.font.size = SIZE_SUBTITLE
-    if doc_def["mode"] == "ZH-AR":
+    if language == "ZH":
         set_cjk_font(sub_run, FONT_LATIN, FONT_CJK)
+    elif language == "AR":
+        set_complex_script_font(sub_run, FONT_ARABIC)
+        set_rtl_run(sub_run)
+        set_rtl_paragraph(sub_p)
     else:
         sub_run.font.name = FONT_LATIN
 
@@ -303,84 +445,44 @@ def build_document(doc_def):
     spacer1 = doc.add_paragraph()
     set_1_2_spacing(spacer1)
 
-    # Bilingual table (2 columns)
-    table = doc.add_table(rows=1, cols=2)
-    table.alignment = WD_TABLE_ALIGNMENT.CENTER
-    table.autofit = False
-
-    LEFT_WIDTH = 55
-    RIGHT_WIDTH = 45
-
-    # Header row
-    hdr_cells = table.rows[0].cells
-    left_label = "中文" if doc_def["mode"] == "ZH-AR" else "English"
-    # Left header (LTR)
-    set_cell_width(hdr_cells[0], LEFT_WIDTH)
-    set_cell_shading(hdr_cells[0], HEADER_FILL)
-    hdr_p0 = hdr_cells[0].paragraphs[0]
-    hdr_p0.alignment = WD_PARAGRAPH_ALIGNMENT.LEFT
-    set_1_2_spacing(hdr_p0)
-    hdr_r0 = hdr_p0.add_run(left_label)
-    hdr_r0.bold = True
-    hdr_r0.font.size = SIZE_BODY
-    if doc_def["mode"] == "ZH-AR":
-        set_cjk_font(hdr_r0, FONT_LATIN, FONT_CJK)
+    if is_clean_layout(doc_def):
+        add_clean_body(doc, doc_def)
     else:
-        hdr_r0.font.name = FONT_LATIN
-    # Right header (RTL Arabic)
-    set_cell_width(hdr_cells[1], RIGHT_WIDTH)
-    set_cell_shading(hdr_cells[1], HEADER_FILL)
-    hdr_p1 = hdr_cells[1].paragraphs[0]
-    hdr_p1.alignment = WD_PARAGRAPH_ALIGNMENT.RIGHT
-    set_rtl_paragraph(hdr_p1)
-    set_1_2_spacing(hdr_p1)
-    hdr_r1 = hdr_p1.add_run("العربية")
-    hdr_r1.bold = True
-    hdr_r1.font.size = SIZE_BODY
-    set_complex_script_font(hdr_r1, FONT_ARABIC)
-    set_rtl_run(hdr_r1)
-
-    # Body rows
-    for left_text, right_text in doc_def["rows"]:
-        row = table.add_row()
-        left_cell = row.cells[0]
-        right_cell = row.cells[1]
-        set_cell_width(left_cell, LEFT_WIDTH)
-        set_cell_width(right_cell, RIGHT_WIDTH)
-        # Clear default empty paragraph in each cell
-        left_cell.paragraphs[0].text = ""
-        right_cell.paragraphs[0].text = ""
-        # Left content
-        if doc_def["mode"] == "ZH-AR":
-            add_cjk_paragraph(left_cell, left_text)
-        else:
-            add_latin_paragraph(left_cell, left_text)
-        # Right Arabic content
-        add_arabic_paragraph(right_cell, right_text)
-        # Remove the leftover empty first paragraph in each cell
-        for cell in (left_cell, right_cell):
-            if len(cell.paragraphs) > 1 and not cell.paragraphs[0].text:
-                cell.paragraphs[0]._p.getparent().remove(cell.paragraphs[0]._p)
+        add_side_by_side_body(doc, doc_def)
 
     # Spacer
     spacer2 = doc.add_paragraph()
     set_1_2_spacing(spacer2)
 
     # Translator's note
-    note_heading_text = "译注" if doc_def["mode"] == "ZH-AR" else "Translator's Note"
+    if language == "ZH":
+        note_heading_text = "译注"
+    elif language == "AR":
+        note_heading_text = "ملاحظة المترجم"
+    else:
+        note_heading_text = "Translator's Note"
     nh = doc.add_paragraph()
     set_1_2_spacing(nh)
+    if language == "AR":
+        nh.alignment = WD_PARAGRAPH_ALIGNMENT.RIGHT
+        set_rtl_paragraph(nh)
     nh_run = nh.add_run(note_heading_text)
     nh_run.bold = True
     nh_run.font.size = SIZE_BODY
-    if doc_def["mode"] == "ZH-AR":
+    if language == "ZH":
         set_cjk_font(nh_run, FONT_LATIN, FONT_CJK)
+    elif language == "AR":
+        set_complex_script_font(nh_run, FONT_ARABIC)
+        set_rtl_run(nh_run)
     else:
         nh_run.font.name = FONT_LATIN
 
     for line in doc_def["translators_note"]:
         np = doc.add_paragraph()
         set_1_2_spacing(np)
+        if language == "AR":
+            np.alignment = WD_PARAGRAPH_ALIGNMENT.RIGHT
+            set_rtl_paragraph(np)
         # Naive script segmentation: ASCII/Latin/CJK as one run, Arabic as RTL run.
         import re
 
@@ -391,7 +493,10 @@ def build_document(doc_def):
                 seg = line[last:m.start()]
                 r = np.add_run(seg)
                 r.font.size = SIZE_NOTE
-                r.font.name = FONT_LATIN
+                if language == "ZH":
+                    set_cjk_font(r, FONT_LATIN, FONT_CJK)
+                else:
+                    r.font.name = FONT_LATIN
             r_ar = np.add_run(m.group())
             r_ar.font.size = SIZE_NOTE
             set_complex_script_font(r_ar, FONT_ARABIC)
@@ -400,7 +505,10 @@ def build_document(doc_def):
         if last < len(line):
             r = np.add_run(line[last:])
             r.font.size = SIZE_NOTE
-            r.font.name = FONT_LATIN
+            if language == "ZH":
+                set_cjk_font(r, FONT_LATIN, FONT_CJK)
+            else:
+                r.font.name = FONT_LATIN
 
     return doc
 

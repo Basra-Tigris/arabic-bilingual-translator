@@ -1,13 +1,13 @@
 ---
 name: arabic-bilingual-translator
-description: Translate Arabic, English, or Chinese source documents, PDFs, scanned PDFs, page images, screenshots, or photographed documents into bilingual Word files — one English-Arabic (EN left / AR right) and one Chinese-Arabic (ZH left / AR right) — preserving legal structure, reference identifiers, and party names, and surfacing rather than silently resolving ambiguities. This skill should be used when the user asks to translate an Arabic legal or general document, PDF, scan, image, or photo into English and/or Chinese (or vice versa: EN/ZH source into Arabic), produce a side-by-side bilingual Word file, render Arabic right-to-left correctly, read Arabic from PDFs/images, or handle Saudi/GCC legal terminology and Hijri dates. Triggers include phrases like "translate this Arabic PDF", "translate these images", "bilingual Arabic Word", "EN-AR translation", "ZH-AR translation", "Arabic legal translation", "沙特法律翻译", "阿拉伯语对照翻译", "阿语 PDF", "图片翻译".
+description: Translate Arabic, English, or Chinese source documents, PDFs, scanned PDFs, page images, screenshots, or photographed documents into either side-by-side bilingual Word files (EN/ZH left, AR right) or clean translated Word files with only the target-language text, preserving legal structure, reference identifiers, and party names, and surfacing rather than silently resolving ambiguities. This skill should be used when the user asks to translate an Arabic legal or general document, PDF, scan, image, or photo into English and/or Chinese (or vice versa: EN/ZH source into Arabic), choose between bilingual comparison and clean translation output, produce a side-by-side bilingual Word file, produce a clean translation Word file, render Arabic right-to-left correctly, read Arabic from PDFs/images, or handle Saudi/GCC legal terminology and Hijri dates. Triggers include phrases like "translate this Arabic PDF", "translate these images", "bilingual Arabic Word", "clean translation", "pure translation", "EN-AR translation", "ZH-AR translation", "Arabic legal translation", "沙特法律翻译", "阿拉伯语对照翻译", "纯净译文", "阿语 PDF", "图片翻译".
 ---
 
 # Arabic Bilingual Translator
 
 ## Overview
 
-Turn an Arabic, English, or Chinese source document — including `.docx`, born-digital PDF, scanned PDF, screenshots, page images, or photographed documents — into two clean, professionally formatted Word files: one **English–Arabic** (EN left / AR right) and one **Chinese–Arabic** (ZH left / AR right), fit to circulate to counsel and stakeholders. The hard parts of this job are not the language — they are (1) reading scanned Arabic correctly, (2) preserving the structural and citational conventions a lawyer relies on, (3) rendering Arabic right-to-left in Word without breakage, and (4) surfacing rather than silently resolving the ambiguities that change legal meaning. This skill encodes the whole pipeline so each document does not have to be re-figured-out from scratch.
+Turn an Arabic, English, or Chinese source document — including `.docx`, born-digital PDF, scanned PDF, screenshots, page images, or photographed documents — into professionally formatted Word translation files, fit to circulate to counsel and stakeholders. Before translating, confirm whether the user wants **side-by-side bilingual output** (EN/ZH left, AR right) or a **clean translated output** (target-language text only, no source column). The hard parts of this job are not the language — they are (1) reading scanned Arabic correctly, (2) preserving the structural and citational conventions a lawyer relies on, (3) rendering Arabic right-to-left in Word without breakage, and (4) surfacing rather than silently resolving the ambiguities that change legal meaning. This skill encodes the whole pipeline so each document does not have to be re-figured-out from scratch.
 
 Two generation backends are bundled. Pick by environment:
 
@@ -18,12 +18,22 @@ Run `python scripts/check_tools.py` once to see which backend, PDF/image intake 
 
 ## Pipeline at a Glance
 
-1. **Prepare and read the source correctly** — text extraction usually fails on scanned Arabic; normalize PDFs/images into page images and read visually.
-2. **Detect source language and target pair** — AR source → emit EN-AR + ZH-AR; EN source → emit EN-AR (+ AR-ZH if asked); ZH source → emit ZH-AR (+ AR-ZH if asked). Default: always produce both EN-AR and ZH-AR when the source is Arabic; produce the matching pair when the source is EN or ZH unless the user asks for only one.
-3. **Translate under the house rules** — preserve structure, references, and party names; never silently resolve ambiguity.
-4. **Build the Word deliverables** — use the two-column table template; left column = EN or ZH translation, right column = Arabic source/translation; handle Arabic RTL.
-5. **Validate and eyeball** — run the validator (docx-js path) or open-and-check (python-docx path), then render to image and inspect layout.
-6. **Deliver with a translator's note** — list every judgment call and ambiguity for counsel to verify.
+1. **Confirm output format before translating** — ask whether the user wants side-by-side bilingual output or clean translated output, unless they already specified it.
+2. **Prepare and read the source correctly** — text extraction usually fails on scanned Arabic; normalize PDFs/images into page images and read visually.
+3. **Detect source language and target language(s)** — AR source → EN + ZH unless narrowed by the user; EN source → AR unless expanded; ZH source → AR unless expanded.
+4. **Translate under the house rules** — preserve structure, references, and party names; never silently resolve ambiguity.
+5. **Build the Word deliverables** — use either the two-column comparison layout or the clean single-language translation layout selected by the user.
+6. **Validate and eyeball** — run the validator (docx-js path) or open-and-check (python-docx path), then render to image and inspect layout.
+7. **Deliver with a translator's note** — list every judgment call and ambiguity for counsel to verify.
+
+## Step 0 — Confirm Output Format Before Translating
+
+Before translating, ask the user to choose the output format unless they already made the choice explicit:
+
+1. **Side-by-side bilingual version** — a Word file with aligned source/translation pairs in two columns. For EN-AR and ZH-AR, English or Chinese stays on the left and Arabic stays on the right.
+2. **Clean translated version** — a Word file containing only the translated target-language text, with no source-text column, while preserving headings, numbering, tables, citations, signature blocks, and the translator's note.
+
+Do not silently default to one format. If the user says "对照版", "左右对照", "bilingual", "side-by-side", or similar, use the side-by-side format. If the user says "纯净译文", "纯译文", "clean translation", "target text only", or similar, use the clean translated format. If the user asks for both, produce both formats and name the files clearly.
 
 ## Step 1 — Prepare and Read the Source Correctly
 
@@ -73,15 +83,15 @@ For `.docx` or born-digital Arabic PDFs where extraction is clean, use the text 
 
 If the user pasted Arabic text directly into chat, work from that, but flag that the translation is of the text as given and cannot be verified against an original. If the user supplies only low-resolution, cropped, rotated, blurred, or glare-obscured images, translate readable text and list the unreadable regions in the translator's note instead of guessing.
 
-## Step 2 — Detect Source Language and Target Pair
+## Step 2 — Detect Source Language and Target Language(s)
 
 Determine the source language automatically from script and content:
 
-- Contains Arabic script → source is **AR**. Default output: both **EN-AR** and **ZH-AR** bilingual files (Arabic on the right in each).
-- Contains Chinese characters (and no Arabic) → source is **ZH**. Default output: **ZH-AR** bilingual (ZH left / AR right). Add **AR-ZH** with Arabic on the left only if the user asks.
-- Otherwise (Latin script) → source is **EN**. Default output: **EN-AR** bilingual (EN left / AR right). Add **AR-EN** with Arabic on the left only if the user asks.
+- Contains Arabic script → source is **AR**. Default target languages: **English** and **Chinese** unless the user asks for only one.
+- Contains Chinese characters (and no Arabic) → source is **ZH**. Default target language: **Arabic** unless the user asks for another direction or an additional output.
+- Otherwise (Latin script) → source is **EN**. Default target language: **Arabic** unless the user asks for another direction or an additional output.
 
-When the user explicitly asks for only one of the two default outputs, honor that.
+Target language choice is separate from output format. For example, AR→EN can be delivered either as an EN-AR side-by-side comparison file or as a clean English-only translated file. When the user explicitly asks for only one target language or one format, honor that.
 
 **Mode detection (legal vs. general):** scan the source for legal-domain markers — Saudi/GCC authority names (GAC, SDAIA, BOG), statute citations (M/75, Royal Decree), case/decision numbers (Decision No. DE-…), Hijri dates, formal salutations to ministers or courts, or competition-law terminology. If two or more markers appear, run in **legal mode** (load `references/glossary-legal.md`, apply Hijri-date rules, preserve argument hierarchy). Otherwise run in **general mode** (load `references/glossary-general.md`, lighter structure preservation). When unsure, default to legal mode for safety — it is stricter and a superset of general rules.
 
@@ -107,14 +117,22 @@ These rules exist because in a legal document a small infidelity (a flipped numb
 
 ## Step 4 — Build the Word Deliverables
 
-Two output files are produced by default (one when the source is EN or ZH and the user did not ask for both directions):
+Build the files using the output format selected in Step 0.
+
+**Side-by-side bilingual version:**
 
 - `<basename>_EN-AR.docx` — left column English, right column Arabic
 - `<basename>_ZH-AR.docx` — left column Chinese, right column Arabic
 
+**Clean translated version:**
+
+- `<basename>_EN_clean.docx` — English translation only
+- `<basename>_ZH_clean.docx` — Chinese translation only
+- `<basename>_AR_clean.docx` — Arabic translation only, RTL throughout
+
 Use the matching template as the starting point:
 
-- **docx-js path:** copy `assets/build_bilingual_docx.js` to the working directory and edit the content arrays. It is preconfigured for legal output: A4, formal serif body (Times New Roman for Latin, Amiri for any retained Arabic, SimSun/宋体 for Chinese), justified text, numbered-section support, two-column table support, a header/footer with page numbers and a draft/confidentiality line, and **1.2× line spacing on every paragraph** (see Line Spacing below).
+- **docx-js path:** copy `assets/build_bilingual_docx.js` to the working directory and edit the content arrays. It supports `layout: "side-by-side"` and `layout: "clean"`. It is preconfigured for legal output: A4, formal serif body (Times New Roman for Latin, Amiri for any retained Arabic, SimSun/宋体 for Chinese), justified text, numbered-section support, two-column table support, clean single-language paragraphs, a header/footer with page numbers and a draft/confidentiality line, and **1.2× line spacing on every paragraph** (see Line Spacing below).
 - **python-docx path:** copy `assets/build_bilingual_py.py` to the working directory and edit the content arrays. Same formatting target as above (including 1.2× line spacing); RTL is set via the `w:bidi`/`w:rtl` XML properties because python-docx has no high-level RTL API.
 
 ### Layout: Two-Column Side-by-Side Table
@@ -125,6 +143,12 @@ Both EN-AR and ZH-AR files use a **two-column table** with the source/translatio
 - **Right column** (≈45% width): Arabic. RTL paragraph, right-aligned, `bidirectional: true` on the paragraph and `rightToLeft: true` + Arabic font on every Arabic run.
 
 This matches the user's standing requirement: **English and Chinese on the left, Arabic on the right.**
+
+### Layout: Clean Translated Version
+
+Clean translated files contain only the target-language translation. Do not include the source text in a second column. Preserve the source document's logical structure in the translation: headings remain headings, numbered clauses remain numbered clauses, tables remain tables when they carry meaning, and signature/attestation blocks remain at the end.
+
+For clean English or Chinese output, use LTR paragraphs and the target-language font. For clean Arabic output, use RTL paragraphs (`bidirectional: true` / `w:bidi`) and Arabic runs with `rightToLeft: true` / `w:rtl`. Keep the translator's note at the end even for clean output.
 
 ### Line Spacing (mandatory)
 
@@ -229,8 +253,8 @@ Then view the rendered pages. Confirm:
 - Tables are intact; column widths look right
 - The signature block is present
 - Nothing overflows the margins
-- The EN-AR file has English on the left, Arabic on the right
-- The ZH-AR file has Chinese on the left, Arabic on the right
+- Side-by-side files have the selected left/right column order
+- Clean translated files contain only the target-language text, with no hidden or visible source column
 
 Fix and re-render before delivering. Copy the final files to the project's working directory (or `outputs/` if the user asks) and present them.
 
@@ -289,7 +313,7 @@ Run `python scripts/check_tools.py` to see which are available and get a tailore
 
 ## Asset Files
 
-- `assets/build_bilingual_docx.js` — docx-js build template (A4, RTL-aware, legal formatting, two-column side-by-side). Copy and edit; do not edit in place.
-- `assets/build_bilingual_py.py` — python-docx build template (same formatting target, RTL via raw XML). Copy and edit; do not edit in place.
+- `assets/build_bilingual_docx.js` — docx-js build template (A4, RTL-aware, legal formatting, two-column side-by-side and clean translated layouts). Copy and edit; do not edit in place.
+- `assets/build_bilingual_py.py` — python-docx build template (same formatting target, two-column and clean layouts, RTL via raw XML). Copy and edit; do not edit in place.
 - `scripts/check_tools.py` — detect available tools and print a command plan.
 - `scripts/prepare_visual_source.py` — convert PDF pages and image files into normalized per-page images plus a manifest for visual translation.

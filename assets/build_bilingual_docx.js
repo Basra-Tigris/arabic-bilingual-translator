@@ -1,7 +1,8 @@
 // build_bilingual_docx.js
-// docx-js template for generating bilingual Word documents:
+// docx-js template for generating bilingual or clean translated Word documents:
 //   - EN-AR file: left column English, right column Arabic
 //   - ZH-AR file: left column Chinese, right column Arabic
+//   - Clean file: target-language translation only, no source-text column
 //
 // All body paragraphs use 1.2x line spacing (see LINE_SPACING_1_2 below).
 //
@@ -47,13 +48,18 @@ const LINE_SPACING_1_2 = { line: 288, lineRule: LineRuleType.AUTO };
 // =============================================================================
 // CONTENT — EDIT THIS SECTION
 // =============================================================================
-// Each document is one bilingual file. Pair each source/translation segment
-// row-by-row in the `rows` array: [leftText, rightText].
+// Each document is one output file.
+// `layout: "side-by-side"` uses `rows` as aligned [leftText, rightText] pairs.
+// `layout: "clean"` uses `paragraphs` as the target-language text only. If
+// `paragraphs` is omitted, clean output is derived from `rows` using the target
+// language: left text for EN/ZH, right text for AR.
 // `mode` controls which pair: "EN-AR" (English left / Arabic right)
 //                            "ZH-AR" (Chinese left / Arabic right)
+// `targetLanguage` for clean output: "EN", "ZH", or "AR".
 
 const DOCUMENTS = [
   {
+    layout: "side-by-side",
     mode: "EN-AR",
     basename: "sample_EN-AR",
     title: "Bilingual Document — English / Arabic",
@@ -76,6 +82,7 @@ const DOCUMENTS = [
     ],
   },
   {
+    layout: "side-by-side",
     mode: "ZH-AR",
     basename: "sample_ZH-AR",
     title: "对照文档 — 中文 / 阿拉伯语",
@@ -95,6 +102,30 @@ const DOCUMENTS = [
       "3. 日期换算：本样例无。",
       "4. 术语选择：الهيئة العامة للمنافسة 全文统一译为\"竞争总局\"（GAC）。",
       "5. 使用的后端：docx-js。",
+    ],
+  },
+  {
+    layout: "clean",
+    mode: "EN-AR",
+    targetLanguage: "EN",
+    basename: "sample_EN_clean",
+    title: "English Translation",
+    subtitle: "Clean working translation — not certified",
+    confidentiality: "DRAFT — CONFIDENTIAL",
+    paragraphs: [
+      "Decision No. DE-1447-00053",
+      "The General Authority for Competition, after reviewing the file,",
+      "decides the following:",
+      "First: The respondent shall cease the conduct.",
+      "Second: A fine of SAR 100,000 is imposed.",
+    ],
+    translatorsNote: [
+      "Translator's note (for counsel verification — this is a working translation, not a certified/sworn translation):",
+      "1. Judgment calls: none in this sample.",
+      "2. Ambiguities / source defects: none observed.",
+      "3. Date conversions: none in this sample.",
+      "4. Terminology choices: 'General Authority for Competition' used throughout for الهيئة العامة للمنافسة (GAC).",
+      "5. Backend used: docx-js.",
     ],
   },
 ];
@@ -140,12 +171,12 @@ function cjkRun(text, opts = {}) {
   });
 }
 
-// Mixed-run note paragraph that may contain Arabic terms. Pass the document
-// `mode` so non-Arabic text uses the CJK font in ZH-AR notes (otherwise the
+// Mixed-run note paragraph that may contain Arabic terms. Pass the target
+// language so non-Arabic text uses the CJK font in Chinese notes (otherwise the
 // note's Chinese characters fall back to a non-CJK font).
-function noteParagraph(text, mode) {
+function noteParagraph(text, language) {
   const arabicRe = /[\u0600-\u06FF\u0750-\u077F]+/g;
-  const nonArabicFont = mode === "ZH-AR"
+  const nonArabicFont = language === "ZH"
     ? { ascii: FONT_LATIN, hAnsi: FONT_LATIN, cs: FONT_LATIN, eastAsia: FONT_CJK }
     : FONT_LATIN;
   const runs = [];
@@ -164,7 +195,12 @@ function noteParagraph(text, mode) {
   if (runs.length === 0) {
     runs.push(new TextRun({ text, font: nonArabicFont, size: SIZE_NOTE }));
   }
-  return new Paragraph({ spacing: LINE_SPACING_1_2, children: runs });
+  return new Paragraph({
+    spacing: LINE_SPACING_1_2,
+    bidirectional: language === "AR",
+    alignment: language === "AR" ? AlignmentType.RIGHT : AlignmentType.LEFT,
+    children: runs,
+  });
 }
 
 
@@ -176,6 +212,17 @@ function arabicRun(text, opts = {}) {
     bold: opts.bold || false,
     rightToLeft: true,
   });
+}
+
+function targetLanguage(doc) {
+  if (doc.targetLanguage) return doc.targetLanguage;
+  if (doc.mode === "ZH-AR") return "ZH";
+  if (doc.mode === "AR") return "AR";
+  return "EN";
+}
+
+function isCleanLayout(doc) {
+  return doc.layout === "clean";
 }
 
 // Left-column paragraph (English or Chinese, LTR)
@@ -194,6 +241,30 @@ function rightParagraph(text) {
     bidirectional: true,
     alignment: AlignmentType.RIGHT,
     children: [arabicRun(text)],
+  });
+}
+
+function translatedParagraph(item, language) {
+  const data = typeof item === "string" ? { text: item } : item;
+  const text = data.text || "";
+  const bold = data.bold || false;
+  const heading = data.heading ? HeadingLevel.HEADING_2 : undefined;
+
+  if (language === "AR") {
+    return new Paragraph({
+      spacing: LINE_SPACING_1_2,
+      heading,
+      bidirectional: true,
+      alignment: AlignmentType.RIGHT,
+      children: [arabicRun(text, { bold })],
+    });
+  }
+
+  return new Paragraph({
+    spacing: LINE_SPACING_1_2,
+    heading,
+    alignment: AlignmentType.LEFT,
+    children: [language === "ZH" ? cjkRun(text, { bold }) : latinRun(text, { bold })],
   });
 }
 
@@ -278,11 +349,22 @@ function buildBilingualTable(doc) {
   });
 }
 
+function buildCleanBody(doc) {
+  const language = targetLanguage(doc);
+  const paragraphs =
+    doc.paragraphs ||
+    doc.cleanParagraphs ||
+    (doc.rows || []).map(([left, right]) => (language === "AR" ? right : left));
+
+  return paragraphs.map((item) => translatedParagraph(item, language));
+}
+
 // =============================================================================
 // DOCUMENT ASSEMBLY
 // =============================================================================
 
 function buildDocument(doc) {
+  const language = targetLanguage(doc);
   const header = new Header({
     children: [
       new Paragraph({
@@ -316,12 +398,20 @@ function buildDocument(doc) {
   });
 
   const titleParagraph =
-    doc.mode === "ZH-AR"
+    language === "ZH"
       ? new Paragraph({
           spacing: LINE_SPACING_1_2,
           alignment: AlignmentType.CENTER,
           heading: HeadingLevel.HEADING_1,
           children: [cjkRun(doc.title, { size: SIZE_HEADING, bold: true })],
+        })
+      : language === "AR"
+      ? new Paragraph({
+          spacing: LINE_SPACING_1_2,
+          alignment: AlignmentType.CENTER,
+          bidirectional: true,
+          heading: HeadingLevel.HEADING_1,
+          children: [arabicRun(doc.title, { size: SIZE_HEADING, bold: true })],
         })
       : new Paragraph({
           spacing: LINE_SPACING_1_2,
@@ -333,23 +423,34 @@ function buildDocument(doc) {
   const subtitleParagraph = new Paragraph({
     spacing: LINE_SPACING_1_2,
     alignment: AlignmentType.CENTER,
+    bidirectional: language === "AR",
     children: [
-      doc.mode === "ZH-AR"
+      language === "ZH"
         ? cjkRun(doc.subtitle, { size: SIZE_SUBTITLE, italics: true })
+        : language === "AR"
+        ? arabicRun(doc.subtitle, { size: SIZE_SUBTITLE, italics: true })
         : latinRun(doc.subtitle, { size: SIZE_SUBTITLE, italics: true }),
     ],
   });
 
   const spacer = new Paragraph({ spacing: LINE_SPACING_1_2, children: [new TextRun({ text: "" })] });
 
-  const table = buildBilingualTable(doc);
+  const bodyChildren = isCleanLayout(doc) ? buildCleanBody(doc) : [buildBilingualTable(doc)];
 
   const noteHeader =
-    doc.mode === "ZH-AR"
+    language === "ZH"
       ? new Paragraph({
           spacing: LINE_SPACING_1_2,
           heading: HeadingLevel.HEADING_2,
           children: [cjkRun("译注", { size: SIZE_BODY, bold: true })],
+        })
+      : language === "AR"
+      ? new Paragraph({
+          spacing: LINE_SPACING_1_2,
+          bidirectional: true,
+          alignment: AlignmentType.RIGHT,
+          heading: HeadingLevel.HEADING_2,
+          children: [arabicRun("ملاحظة المترجم", { size: SIZE_BODY, bold: true })],
         })
       : new Paragraph({
           spacing: LINE_SPACING_1_2,
@@ -357,7 +458,7 @@ function buildDocument(doc) {
           children: [latinRun("Translator's Note", { size: SIZE_BODY, bold: true })],
         });
 
-  const noteParagraphs = doc.translatorsNote.map((line) => noteParagraph(line, doc.mode));
+  const noteParagraphs = doc.translatorsNote.map((line) => noteParagraph(line, language));
 
   return new Document({
     sections: [
@@ -384,7 +485,7 @@ function buildDocument(doc) {
           titleParagraph,
           subtitleParagraph,
           spacer,
-          table,
+          ...bodyChildren,
           spacer,
           noteHeader,
           ...noteParagraphs,
