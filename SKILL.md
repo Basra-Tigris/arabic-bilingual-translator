@@ -37,7 +37,14 @@ Two generation backends are bundled. Pick by environment:
 - **docx-js** (`assets/build_bilingual_docx.js`) — preferred when Node.js is available; install `docx` locally into the managed workspace, never globally.
 - **python-docx** (`assets/build_bilingual_py.py`) — fallback when only Python is available; install `python-docx` into the managed venv.
 
-Run `python scripts/check_tools.py` once to see which backend, PDF/image intake tools, and visual-check tools are available on the current machine; it prints a ready-to-use command plan.
+Run `& "<PYTHON_EXE>" scripts/check_tools.py` once to see which backend, PDF/image intake tools, and visual-check tools are available on the current machine; it prints a ready-to-use command plan. Treat Poppler, PyMuPDF, Tesseract, and LibreOffice as environment tools, not files to vendor into the skill.
+
+Tool roles:
+
+- **PyMuPDF (`fitz`)** — preferred Python path for PDF rendering and inspection when Poppler is unavailable, especially on Windows because it has no separate Poppler dependency.
+- **Poppler (`pdfinfo`, `pdftotext`, `pdftoppm`)** — CLI toolkit for PDF metadata, text-extraction trials, and page rasterization; useful as a fallback or cross-check.
+- **Tesseract OCR** — optional draft aid for scanned pages and images; require the relevant language data (`ara`, `eng`, `chi_sim`) and always visually verify.
+- **LibreOffice (`soffice`)** — output QA tool for converting finished `.docx` files to PDF so RTL, tables, margins, and page breaks can be inspected.
 
 ## Pipeline at a Glance
 
@@ -61,6 +68,8 @@ Do not silently default to one format. If the user says "对照版", "左右对�
 ## Step 1 — Prepare and Read the Source Correctly
 
 Arabic legal PDFs are very often scans or image-based exports. Naive extraction produces garbled, reordered, or empty output and silently corrupts numbers and names — unacceptable for a legal document. Do not trust `pdftotext`, OCR, or model-read text on an Arabic PDF/image without visual checking.
+
+Before handling a PDF or image source, run `& "<PYTHON_EXE>" scripts/check_tools.py` and choose the intake path from the reported tools. Prefer `scripts/prepare_visual_source.py`; it uses PyMuPDF when available and falls back to Poppler. Use Tesseract only to speed transcription, never as the final authority.
 
 **Accepted source inputs:**
 
@@ -94,7 +103,7 @@ ls page*.jpg
 
 Then view each `page-N.jpg` or prepared page image and read the Arabic directly from the image. Resolution matters: below ~150 dpi Arabic diacritics and digits blur; 200-220 dpi is reliable, go to 300 for dense small print.
 
-**Windows fallback when Poppler is missing:** use Python with `pdf2image` + `Pillow`, or `pymupdf` (fitz), installed into the managed venv:
+**Windows fallback when Poppler is missing:** prefer `pymupdf` (fitz), installed into the managed venv. `pdf2image` still needs Poppler on Windows, so use it only when Poppler is already installed:
 
 ```powershell
 & "<PYTHON_EXE>" -m pip install pdf2image pillow pymupdf
@@ -319,13 +328,13 @@ This skill is **self-contained** — it does not depend on any external "docx sk
   ```
 
 **Optional (PDF source reading & visual check):**
-- Pillow (`PIL`) — for normalizing page images, screenshots, and photographed documents
-- `pymupdf` (Python) — Poppler-free PDF text extraction and page rendering; preferred for `scripts/prepare_visual_source.py`
-- Poppler (`pdftoppm`, `pdftotext`, `pdfinfo`) — fallback for rasterizing and extracting Arabic PDFs
-- Tesseract OCR with Arabic/English/Chinese language data — optional draft text aid only; always visually verify
-- LibreOffice (`soffice`) — for converting the output `.docx` to PDF for the visual check
+- Pillow (`PIL`) — normalizes page images, screenshots, and photographed documents before translation.
+- `pymupdf` (Python package `fitz`) — Poppler-free PDF text inspection and page rendering; prefer it for `scripts/prepare_visual_source.py` on Windows or locked-down systems.
+- Poppler (`pdfinfo`, `pdftotext`, `pdftoppm`) — checks PDF metadata, tests born-digital extraction, and rasterizes pages; use as fallback or cross-check.
+- Tesseract OCR with Arabic/English/Chinese language data (`ara`, `eng`, `chi_sim`) — optional draft text aid only; never accept OCR output without visual verification.
+- LibreOffice (`soffice`) — converts finished `.docx` files to PDF for visual QA of RTL rendering, tables, margins, and page breaks.
 
-Run `python scripts/check_tools.py` to see which are available and get a tailored command plan.
+Run `& "<PYTHON_EXE>" scripts/check_tools.py` to see which are available and get a tailored command plan.
 
 ## Reference Files
 

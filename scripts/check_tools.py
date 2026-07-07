@@ -3,7 +3,7 @@ Detect which generation backends and PDF/image tools are available on this machi
 and print a tailored command plan for translating an Arabic document.
 
 Usage:
-  python check_tools.py
+  & "<PYTHON_EXE>" check_tools.py
 """
 
 import os
@@ -65,6 +65,34 @@ def have_npm_package(package, module_paths):
     return False
 
 
+def tesseract_languages():
+    """Return installed Tesseract language data names, if Tesseract is available."""
+    exe = shutil.which("tesseract")
+    if not exe:
+        return []
+    try:
+        r = subprocess.run(
+            [exe, "--list-langs"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+    except Exception:
+        return []
+    if r.returncode != 0:
+        return []
+
+    langs = []
+    for line in (r.stdout + "\n" + r.stderr).splitlines():
+        value = line.strip()
+        if not value:
+            continue
+        if value.lower().startswith("list of available languages"):
+            continue
+        langs.append(value)
+    return sorted(set(langs))
+
+
 def main():
     print("=" * 70)
     print("Arabic Bilingual Translator - Environment Check")
@@ -90,16 +118,37 @@ def main():
 
     # --- PDF/image tools ---
     print("[PDF/image source reading & visual check]")
-    poppler_ok = have("pdftoppm") and have("pdftotext") and have("pdfinfo")
-    soffice_ok = have("soffice") or have("libreoffice")
+    poppler_cmds = {cmd: have(cmd) for cmd in ("pdfinfo", "pdftotext", "pdftoppm")}
+    poppler_ok = all(poppler_cmds.values())
+    soffice_cmd = shutil.which("soffice") or shutil.which("libreoffice")
+    soffice_ok = soffice_cmd is not None
     pymupdf_ok = have_module(PYTHON_EXE, "fitz") if py_ok else False
     pillow_ok = have_module(PYTHON_EXE, "PIL") if py_ok else False
     tesseract_ok = have("tesseract")
+    ocr_langs = tesseract_languages() if tesseract_ok else []
+    expected_ocr_langs = ["ara", "eng", "chi_sim"]
+    missing_ocr_langs = [lang for lang in expected_ocr_langs if lang not in ocr_langs]
     print(f"  Pillow (PIL)          -> {'OK' if pillow_ok else 'NOT INSTALLED'}")
-    print(f"  Poppler (pdftoppm)    -> {'OK' if poppler_ok else 'NOT INSTALLED'}")
     print(f"  pymupdf (fitz)        -> {'OK' if pymupdf_ok else 'NOT INSTALLED'}")
+    print(f"  Poppler suite         -> {'OK' if poppler_ok else 'PARTIAL/MISSING'}")
+    for cmd, ok in poppler_cmds.items():
+        print(f"    - {cmd:<9}          -> {'OK' if ok else 'MISSING'}")
     print(f"  Tesseract OCR         -> {'OK' if tesseract_ok else 'NOT INSTALLED'}")
+    if tesseract_ok:
+        shown_langs = ", ".join(ocr_langs[:20]) if ocr_langs else "not reported"
+        suffix = "..." if len(ocr_langs) > 20 else ""
+        print(f"  Tesseract languages   -> {shown_langs}{suffix}")
+        if missing_ocr_langs:
+            print(f"  OCR language gap      -> missing {', '.join(missing_ocr_langs)}")
     print(f"  LibreOffice (soffice) -> {'OK' if soffice_ok else 'NOT INSTALLED'}")
+    print()
+
+    # --- Tool roles ---
+    print("[Tool roles]")
+    print("  PyMuPDF     -> preferred PDF rendering/inspection path when Poppler is missing.")
+    print("  Poppler     -> CLI metadata, text-extraction trials, and PDF page rasterization.")
+    print("  Tesseract   -> optional OCR draft aid only; visually verify every result.")
+    print("  LibreOffice -> convert final DOCX to PDF for layout and RTL visual QA.")
     print()
 
     # --- Recommended backend ---
@@ -166,10 +215,17 @@ def main():
         print()
 
     if not poppler_ok and not pymupdf_ok:
-        print("  # PDF source reading: neither Poppler nor pymupdf available.")
+        available_poppler = [cmd for cmd, ok in poppler_cmds.items() if ok]
+        missing_poppler = [cmd for cmd, ok in poppler_cmds.items() if not ok]
+        if available_poppler:
+            print("  # PDF source reading: Poppler is only partially available,")
+            print(f"  #   available: {', '.join(available_poppler)}")
+            print(f"  #   missing: {', '.join(missing_poppler)}")
+        else:
+            print("  # PDF source reading: neither Poppler nor pymupdf is available.")
         print("  #   Option A (preferred): install pymupdf (no system deps):")
         print(f'  & "{PYTHON_EXE}" -m pip install pymupdf')
-        print("  #   Option B: install Poppler for Windows from")
+        print("  #   Option B: install the complete Poppler suite for Windows from")
         print("  #     https://github.com/oschwartz10612/poppler-windows/releases")
         print("  #     and add its bin/ to PATH.")
         print()
@@ -177,6 +233,11 @@ def main():
     if not tesseract_ok:
         print("  # OCR: Tesseract is optional. Use it only as a draft aid;")
         print("  #      always visually verify OCR text against the page image.")
+        print()
+    elif missing_ocr_langs:
+        print("  # OCR: Tesseract is installed, but recommended language data is missing:")
+        print(f"  #      missing {', '.join(missing_ocr_langs)}")
+        print("  #      For Arabic legal scans, skip OCR unless 'ara' is present.")
         print()
 
     if not soffice_ok:
